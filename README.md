@@ -2,6 +2,7 @@
 A lightweight header-only owning string hashmap for mcus using CRC peripheral as a hash
 ## Features
 - Self allocates the memory from a passed memory arena (con: you cannot remove the entires) 
+- Register agnostic api
 - 350 lines of C
 - No external dependencies
 ## How to use it  
