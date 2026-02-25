@@ -43,6 +43,7 @@ void *res = bad_str_map_lookup_cstr(&map, key);
 ```
 ## Notes
 Api casts pointers so make sure to compile it with strict aliasing disabled
+
 The cstr api may overread so make sure the buffer is 4 byte aligned if you place it at the end of memory
 
 The main application (`src/main.c`) provides an example
