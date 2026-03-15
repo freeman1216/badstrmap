@@ -29,8 +29,17 @@ static inline void bad_str_map_update_crc(uint32_t val){
 ```
 4. Alocate the map either statically or dinamically 
 ```c
-BAD_STR_MAP_CREATE_STATIC(map, 64, 256);
+BAD_STR_MAP_ALLOCATE_STATIC(map, 64, 256);
 
+```
+Or
+```c
+char *map = malloc(BAD_STR_MAP_ALLOC_SIZE(64,256)); 
+bad_str_map_t *map = bad_str_map_init(map_mem,
+        BAD_STR_MAP_GET_KEYS_PTR(map_mem),
+        BAD_STR_MAP_GET_DATA_PTR(map_mem,64),
+        BAD_STR_MAP_GET_ARENA_PTR(map_mem,64),
+        64,256)
 ```
 5. Make sure the input is 4 byte aligned
 ```c
@@ -42,7 +51,7 @@ bad_str_map_add_cstr(&map,key , (void *)123 );
 void *res = bad_str_map_lookup_cstr(&map, key);
 ```
 ## Notes
-Api casts pointers so make sure to compile it with strict aliasing disabled
+Api casts pointers so make sure to compile the TU with implementation with strict aliasing disabled
 
 The cstr api may overread so make sure the buffer is 4 byte aligned if you place it at the end of memory
 

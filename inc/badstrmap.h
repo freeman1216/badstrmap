@@ -1,5 +1,9 @@
+#pragma once
+#ifndef BAD_STR_MAP
+#define BAD_STR_MAP
+
 #include <stdint.h>
-#ifdef BAD_STRMAP_USE_MEMCMP
+#ifdef BAD_STR_MAP_USE_STRING_H
 #include <string.h>
 #endif
 
@@ -26,31 +30,125 @@ typedef enum {
     BAD_STR_MAP_FULL
 }bad_str_map_status_t;
 
-#define BAD_STR_MAP_CREATE_STATIC(name,size,map_arena_size)                 \
-    _Static_assert((size & (size-1)) == 0,"Map size must be a power of 2"); \
-    _Static_assert((map_arena_size & 0x3) == 0,"Map arena size must be a multiple of word_size" );\
-    fstring_t *name##_keys[size << 1] = {0};                                \
-    void * name##_data[size << 1];                                          \
-    uint8_t __attribute__((aligned(4)))name##_arena[map_arena_size];        \
-    bad_str_map_t name = {.arena =name##_arena,                             \
-        .data = name##_data,                                                \
-        .curr = name##_arena,                                               \
-        .keys = name##_keys,                                                \
-        .map_size = size<<1,                                                \
-        .arena_size = map_arena_size};
-#ifdef BAD_STRMAP_STATIC
-    #define BAD_STRMAP_DEF static
+#ifdef BAD_STR_MAP_STATIC
+    #define BAD_STR_MAP_DEF static
 #else 
-    #define BAD_STRMAP_DEF extern
-#endif // BAD_STRMAP_STATIC
+    #define BAD_STR_MAP_DEF extern
+#endif // BAD_STR_MAP_STATIC
 
-BAD_STRMAP_DEF void* bad_str_map_lookup_cstr_convert(bad_str_map_t *map,char *key,fstring_t *buffer);
-BAD_STRMAP_DEF void *bad_str_map_lookup_fstr(bad_str_map_t* map, fstring_t *key);
-BAD_STRMAP_DEF void* bad_str_map_lookup_cstr(bad_str_map_t *map,char* key);
-BAD_STRMAP_DEF bad_str_map_status_t bad_str_map_add_fstr(bad_str_map_t* map,fstring_t* key,void* val);
-BAD_STRMAP_DEF bad_str_map_status_t bad_str_map_add_cstr(bad_str_map_t *map,char *key,void *val);
+#define BAD_STR_MAP_ALIGN (_Alignof(bad_str_map_t))
+#define BAD_STR_MAP_ALIGN_ATTR __attribute__((aligned(BAD_STR_MAP_ALIGN)))
 
-#ifdef BAD_STRMAP_IMPLEMENTATION
+#define BAD_STR_MAP_ALLOC_SIZE(map_size,map_arena_size) ({ \
+    _Static_assert((map_size & (map_size-1)) == 0,"Map size must be a power of 2"); \
+    _Static_assert((map_arena_size & 0x3) == 0,"Map arena size must be a multiple of word_size" );\
+    (sizeof(bad_str_map_t) + (((map_size) << 1) * 2) * (sizeof(void *)) + (map_arena_size)); \
+})
+
+#define BAD_STR_MAP_GET_KEYS_PTR(name)({\
+    _Static_assert(sizeof(*(name)) == 1,"Macro requires byte ptr");\
+    ((name) + sizeof(bad_str_map_t));\
+})
+
+#define BAD_STR_MAP_GET_KEYS_END(name,map_size)({\
+    _Static_assert(sizeof(*(name)) == 1,"Macro requires byte ptr");\
+    (BAD_STR_MAP_GET_KEYS_PTR(name) + (sizeof(void*) * (map_size << 1)));\
+})
+
+#define BAD_STR_MAP_GET_DATA_PTR(name,map_size)({\
+    _Static_assert(sizeof(*(name)) == 1,"Macro requires byte ptr");\
+    (BAD_STR_MAP_GET_KEYS_END(name,map_size));\
+})
+
+#define BAD_STR_MAP_GET_DATA_END(name,map_size)({\
+    _Static_assert(sizeof(*(name)) == 1,"Macro requires byte ptr");\
+    (BAD_STR_MAP_GET_KEYS_END(name,map_size) + (sizeof(void*) * (map_size << 1));\
+})
+
+#define BAD_STR_MAP_GET_ARENA_PTR(name,map_size)({\
+    _Static_assert(sizeof(*(name)) == 1,"Macro requires byte ptr");\
+    (BAD_STR_MAP_GET_KEYS_END(name,map_size));\
+})
+
+#define BAD_STR_MAP_ALLOCATE_STATIC(name,map_size,map_arena_size)\
+    uint8_t BAD_STR_MAP_ALIGN_ATTR name##_map_mem[BAD_STR_MAP_ALLOC_SIZE(map_size,map_arena_size)];\
+    bad_str_map_t *name = bad_str_map_init(name##_map_mem,\
+        BAD_STR_MAP_GET_KEYS_PTR(name##_map_mem),\
+        BAD_STR_MAP_GET_DATA_PTR(name##_map_mem,map_size),\
+        BAD_STR_MAP_GET_ARENA_PTR(name##_map_mem,map_size),\
+        (map_size),(map_arena_size))
+
+BAD_STR_MAP_DEF bad_str_map_t *bad_str_map_init(
+        void *str_map_mem,
+        void *keys_mem,
+        void *data_mem,
+        void *arena_mem, 
+        uint32_t map_size, 
+        uint32_t arena_size);
+BAD_STR_MAP_DEF void *bad_str_map_lookup_cstr_convert(bad_str_map_t *map,char *key,fstring_t *buffer);
+BAD_STR_MAP_DEF void *bad_str_map_lookup_fstr(bad_str_map_t* map, fstring_t *key);
+BAD_STR_MAP_DEF void *bad_str_map_lookup_cstr(bad_str_map_t *map,char* key);
+BAD_STR_MAP_DEF bad_str_map_status_t bad_str_map_add_fstr(bad_str_map_t* map,fstring_t* key,void* val);
+BAD_STR_MAP_DEF bad_str_map_status_t bad_str_map_add_cstr(bad_str_map_t *map,char *key,void *val);
+BAD_STR_MAP_DEF void bad_str_map_reset(bad_str_map_t *map);
+BAD_STR_MAP_DEF void bad_str_map_deinit(bad_str_map_t *map);
+#ifdef BAD_STR_MAP_IMPLEMENTATION
+
+bad_str_map_t *bad_str_map_init(
+        void *str_map_mem,
+        void *keys_mem,
+        void *data_mem,
+        void *arena_mem, 
+        uint32_t map_size, 
+        uint32_t arena_size)
+{
+    bad_str_map_t *map = (bad_str_map_t *)str_map_mem;
+    map->map_size = map_size << 1;
+    map->arena = arena_mem;
+    map->arena_size = arena_size;
+    map->count = 0;
+    map->curr = arena_mem;
+    map->data = data_mem;
+    map->keys = keys_mem;
+#ifdef BAD_STR_MAP_USE_STRING_H
+    memset(keys_mem,0,map_size * sizeof(fstring_t **));
+    memset(data_mem,0,map_size * sizeof(void **))
+#else
+    void **data_ptr = data_mem;
+    for(uint32_t i = 0; i < map_size << 1; i++){
+        data_ptr[i] = 0;
+    }
+    fstring_t **keys_ptr = keys_mem;
+    for(uint32_t i = 0; i < map_size << 1; i++){
+        keys_ptr[i] = 0;
+    }
+#endif
+    return map;
+}
+
+void bad_str_map_reset(bad_str_map_t *map){
+    map->count = 0;
+    map->curr = map->arena;
+#ifdef BAD_STR_MAP_USE_STRING_H
+    memset(map->keys,0,map_size * sizeof(fstring_t **));
+    memset(map->data,0,map_size * sizeof(void **))
+#else
+    void **data_ptr = map->data;
+    uint32_t map_size = map->map_size;
+    for(uint32_t i = 0; i < map_size; i++){
+        data_ptr[i] = 0;
+    }
+    fstring_t **keys_ptr = map->keys;
+    for(uint32_t i = 0; i < map_size; i++){
+        keys_ptr[i] = 0;
+    }
+#endif
+
+}
+
+void bad_str_map_deinit(bad_str_map_t *map){
+    *map = (bad_str_map_t){0};
+}
 
 static inline uint32_t bad_str_map_get_crc();
 static inline void bad_str_map_update_crc(uint32_t val);
@@ -67,11 +165,12 @@ static inline uint32_t fstr_compare(fstring_t *str0,fstring_t * str1){
     uint32_t *wstr0 = (uint32_t*)str0->data;
     uint32_t *wstr1 = (uint32_t*)str1->data;
     uint32_t iter_count = (str0->length >> 2) + 1 ;
-    uint32_t diff = 0;
     for(uint32_t i = 0; i < iter_count;i++){
-       diff |= wstr1[i] ^ wstr0[i];
+       if(wstr1[i]!=wstr0[i]){
+           return 0;
+       }
     }
-    return !diff;
+    return 1;
 #endif
 }
 
@@ -81,33 +180,40 @@ static inline uint32_t fstr_cstr_compare(fstring_t *str0,char* str1,uint32_t str
     }
 
 
-#ifdef BAD_STR_MAP_USE_MEMCMP
+#ifdef BAD_STR_MAP_USE_STRING_H
     return !memcmp(str0->data, str1, str1_length);
 #else 
     uint32_t *wstr0 = (uint32_t*)str0->data;
     uint32_t *wstr1 = (uint32_t*)str1;
     uint32_t word_count = (str1_length >> 2);
     uint32_t byte_count = str1_length & 0x3;
-    uint32_t diff = 0;
     for(uint32_t i = 0; i < word_count;i++){
-        diff |= (wstr1[i] ^ wstr0[i]);
+        if(wstr1[i]!=wstr0[i]){
+           return 0;
+        }
     }
     char* byte_str0 = (char *)(wstr0+word_count);
     char* byte_str1 = (char *)(wstr1+word_count);
     switch (byte_count) {
         case 3:{
-             diff |= (byte_str1[2] ^ byte_str0[2]);
+             if(byte_str0[2] != byte_str1[2]){
+                 return 0;
+             }
         } 
         /*fallthrough*/
         case 2:{
-            diff |= (byte_str1[1] ^ byte_str0[1]);
+            if(byte_str0[1] != byte_str1[1]){
+                 return 0;
+            }
         } 
         /*fallthrough*/
         case 1:{
-            diff |= (byte_str1[0] ^ byte_str0[0]);
+            if(byte_str0[0] != byte_str1[0]){
+                 return 0;
+            }
         }
     }
-    return !diff;
+    return 1;
 #endif
 }
 
@@ -349,4 +455,5 @@ bad_str_map_status_t bad_str_map_add_fstr(bad_str_map_t* map,fstring_t* key,void
     return BAD_STR_MAP_OK;
 
 }
+#endif
 #endif

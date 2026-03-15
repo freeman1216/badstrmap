@@ -18,7 +18,7 @@
 #define BAD_HARDFAULT_USE_UART
 #include "badhal.h"
 
-#define BAD_STRMAP_IMPLEMENTATION
+#define BAD_STR_MAP_IMPLEMENTATION
 #include "badstrmap.h"
 
 #define UART_GPIO_PORT          (GPIOA)
@@ -80,9 +80,9 @@ int main(){
     
     __ENABLE_INTERUPTS;
     char __attribute__((aligned(4))) *key ="Hello Hashmap";
-    BAD_STR_MAP_CREATE_STATIC(map, 64, 256);
-    bad_str_map_add_cstr(&map,key , (void *)123 );
-    void *res = bad_str_map_lookup_cstr(&map, key);
+    BAD_STR_MAP_ALLOCATE_STATIC(map, 64, 256);
+    bad_str_map_add_cstr(map,key , (void *)123 );
+    void *res = bad_str_map_lookup_cstr(map, key);
     
     while(1){
         
